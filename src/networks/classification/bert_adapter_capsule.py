@@ -5,6 +5,8 @@ from transformers import BertModel, BertConfig
 import utils
 from torch import nn
 
+sys.path.append("./networks/base/")
+from my_transformers import MyBertModel
 
 class Net(torch.nn.Module):
 
@@ -13,21 +15,8 @@ class Net(torch.nn.Module):
         super(Net,self).__init__()
         config = BertConfig.from_pretrained(args.bert_model)
         config.return_dict=False
-        config.apply_bert_output = args.apply_bert_output
-        config.apply_bert_attention_output = args.apply_bert_attention_output
-        config.apply_one_layer_shared = args.apply_one_layer_shared
-        config.apply_two_layer_shared = args.apply_two_layer_shared
-        config.build_adapter_mask = args.build_adapter_mask
-        config.build_adapter = args.build_adapter
-        config.build_adapter_ucl = args.build_adapter_ucl
-        config.build_adapter_owm = args.build_adapter_owm
-        config.build_adapter_grow = args.build_adapter_grow
-        config.build_adapter_attention_mask = args.build_adapter_attention_mask
-        config.build_adapter_two_modules = args.build_adapter_two_modules
-        config.build_adapter_capsule_mask = args.build_adapter_capsule_mask
-        config.build_adapter_capsule = args.build_adapter_capsule
-        config.build_adapter_mlp_mask = args.build_adapter_mlp_mask
-        self.bert = BertModel.from_pretrained(args.bert_model,config=config)
+        args.build_adapter_capsule = True
+        self.bert = MyBertModel.from_pretrained(args.bert_model,config=config,args=args)
 
         for param in self.bert.parameters():
             # param.requires_grad = True
@@ -53,7 +42,6 @@ class Net(torch.nn.Module):
         self.args = args
         self.config = config
         self.num_task = len(taskcla)
-        self.num_class = 3
 
         self.apply_bert_attention_output = args.apply_bert_attention_output
         self.apply_bert_output = args.apply_bert_output
@@ -66,11 +54,9 @@ class Net(torch.nn.Module):
 
         output_dict = {}
 
-        targets = torch.eye(self.num_class).cuda().index_select(dim=0, index=targets)
 
         sequence_output, pooled_output = \
-            self.bert(input_ids=input_ids, token_type_ids=segment_ids, attention_mask=input_mask,
-                      targets=targets,t=t,s=s)
+            self.bert(input_ids=input_ids, token_type_ids=segment_ids, attention_mask=input_mask,t=t,s=s)
 
         pooled_output = self.dropout(pooled_output)
         y=[]

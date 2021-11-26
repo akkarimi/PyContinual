@@ -5,6 +5,9 @@ from transformers import BertModel, BertConfig
 import utils
 from torch import nn
 
+sys.path.append("./networks/base/")
+from my_transformers import MyBertModel
+
 
 class Net(torch.nn.Module):
 
@@ -13,39 +16,26 @@ class Net(torch.nn.Module):
         super(Net,self).__init__()
         config = BertConfig.from_pretrained(args.bert_model)
         config.return_dict=False
-        config.apply_bert_output = args.apply_bert_output
-        config.apply_bert_attention_output = args.apply_bert_attention_output
-        config.apply_one_layer_shared = args.apply_one_layer_shared
-        config.apply_two_layer_shared = args.apply_two_layer_shared
-        config.build_adapter_mask = args.build_adapter_mask
-        config.build_adapter = args.build_adapter
-        config.build_adapter_ucl = args.build_adapter_ucl
-        config.build_adapter_owm = args.build_adapter_owm
-        config.build_adapter_grow = args.build_adapter_grow
-        config.build_adapter_attention_mask = args.build_adapter_attention_mask
-        config.build_adapter_two_modules = args.build_adapter_two_modules
-        config.build_adapter_capsule_mask = args.build_adapter_capsule_mask
-        config.build_adapter_capsule = args.build_adapter_capsule
-        config.build_adapter_mlp_mask = args.build_adapter_mlp_mask
-        self.bert = BertModel.from_pretrained(args.bert_model,config=config)
+        args.build_adapter_capsule_mask = True
+        self.bert = MyBertModel.from_pretrained(args.bert_model,config=config,args=args)
 
         for param in self.bert.parameters():
             # param.requires_grad = True
             param.requires_grad = False
 
-        if config.apply_bert_output and config.apply_bert_attention_output:
+        if args.apply_bert_output and args.apply_bert_attention_output:
             adapter_masks = \
                 [self.bert.encoder.layer[layer_id].attention.output.adapter_capsule_mask for layer_id in range(config.num_hidden_layers)] + \
                 [self.bert.encoder.layer[layer_id].attention.output.LayerNorm for layer_id in range(config.num_hidden_layers)] + \
                 [self.bert.encoder.layer[layer_id].output.adapter_capsule_mask for layer_id in range(config.num_hidden_layers)] + \
                 [self.bert.encoder.layer[layer_id].output.LayerNorm for layer_id in range(config.num_hidden_layers)]
 
-        elif config.apply_bert_output:
+        elif args.apply_bert_output:
             adapter_masks = \
                 [self.bert.encoder.layer[layer_id].output.adapter_capsule_mask for layer_id in range(config.num_hidden_layers)] + \
                 [self.bert.encoder.layer[layer_id].output.LayerNorm for layer_id in range(config.num_hidden_layers)]
 
-        elif config.apply_bert_attention_output:
+        elif args.apply_bert_attention_output:
             adapter_masks = \
                 [self.bert.encoder.layer[layer_id].attention.output.adapter_capsule_mask for layer_id in range(config.num_hidden_layers)] + \
                 [self.bert.encoder.layer[layer_id].attention.output.LayerNorm for layer_id in range(config.num_hidden_layers)]
@@ -64,7 +54,6 @@ class Net(torch.nn.Module):
         self.args = args
         self.config = config
         self.num_task = len(taskcla)
-        self.num_class = 3
         self.num_kernel = 3
 
         print('BERT ADAPTER CAPSULE MASK')
@@ -73,15 +62,12 @@ class Net(torch.nn.Module):
 
     def forward(self,t,input_ids, segment_ids, input_mask, targets, s=1):
 
-        output_dict = {}
-        targets = torch.eye(self.num_class).cuda().index_select(dim=0, index=targets)
 
         output_dict = \
             self.bert(input_ids=input_ids, token_type_ids=segment_ids, attention_mask=input_mask,
-                      targets=targets,t=t,s=s)
+                      targets=None,t=t,s=s)
 
         sequence_output, pooled_output = output_dict['outputs']
-        margin_loss = output_dict['margin_loss']
 
         pooled_output = self.dropout(pooled_output)
         y=[]
@@ -92,7 +78,6 @@ class Net(torch.nn.Module):
 
         output_dict['y'] = y
         output_dict['masks'] = masks
-        output_dict['margin_loss'] = margin_loss
 
         return output_dict
 
@@ -100,7 +85,7 @@ class Net(torch.nn.Module):
         masks = {}
         for layer_id in range(self.config.num_hidden_layers):
 
-            if self.config.apply_bert_output:
+            if self.args.apply_bert_output:
                 fc1_key = 'bert.encoder.layer.'+str(layer_id)+'.output.adapter_capsule_mask.fc1' #gfc1
                 fc2_key = 'bert.encoder.layer.'+str(layer_id)+'.output.adapter_capsule_mask.fc2' #gfc2
 
@@ -109,7 +94,7 @@ class Net(torch.nn.Module):
                 key = 'bert.encoder.layer.'+str(layer_id)+'.output.adapter_capsule_mask.capsule_net.tsv_capsules.larger' #gfc1
                 masks[key] = self.bert.encoder.layer[layer_id].output.adapter_capsule_mask.capsule_net.tsv_capsules.mask(t,s)
 
-            if self.config.apply_bert_attention_output:
+            if self.args.apply_bert_attention_output:
                 fc1_key = 'bert.encoder.layer.'+str(layer_id)+'.attention.output.adapter_capsule_mask.fc1' #gfc1
                 fc2_key = 'bert.encoder.layer.'+str(layer_id)+'.attention.output.adapter_capsule_mask.fc2' #gfc2
 

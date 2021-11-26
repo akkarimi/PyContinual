@@ -8,7 +8,6 @@ import math
 import json
 import argparse
 import random
-from transformers import AdamW, get_linear_schedule_with_warmup
 from tqdm import tqdm, trange
 import numpy as np
 import torch
@@ -18,15 +17,14 @@ import torch.distributed as dist
 from torch.utils.data import TensorDataset, random_split
 import utils
 # from apex import amp
-from pytorch_pretrained_bert.tokenization import BertTokenizer
-from pytorch_pretrained_bert.modeling import BertForSequenceClassification
-from pytorch_pretrained_bert.optimization import BertAdam
+
 import torch.nn.functional as F
 import functools
 import torch.nn as nn
 from copy import deepcopy
 sys.path.append("./approaches/base/")
 from bert_adapter_mask_base import Appr as ApprBase
+from my_optimization import BertAdam
 
 
 
@@ -153,10 +151,6 @@ class Appr(ApprBase):
             if self.args.augment_distill and t > 0: #separatlu append
                 loss += self.augment_distill_loss(output,pooled_rep,input_ids, segment_ids, input_mask,targets, t,s)
 
-
-            if self.args.augment_current: #for current, we know the label
-                loss += self.augment_current_loss(output,pooled_rep,input_ids, segment_ids, input_mask,targets, t,s)
-
             if self.args.sup_loss:
                 loss += self.sup_loss(output,pooled_rep,input_ids, segment_ids, input_mask,targets,t,s)
 
@@ -218,13 +212,12 @@ class Appr(ApprBase):
 
                 if 'dil' in self.args.scenario:
 
-                    if self.args.last_id: # fix 0
+                    if self.args.last_id: # use the last one
                         output_dict = self.model(trained_task,input_ids, segment_ids, input_mask,s=self.smax)
                         output = output_dict['y']
                         masks = output_dict['masks']
 
-                    elif self.args.ent_id:
-                        # this is parameter-isolation method, kind of like multi-head
+                    elif self.args.ent_id: # detect the testing is
                         outputs = []
                         entropies = []
 

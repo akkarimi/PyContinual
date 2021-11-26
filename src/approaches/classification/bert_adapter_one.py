@@ -8,7 +8,6 @@ import math
 import json
 import argparse
 import random
-from transformers import AdamW, get_linear_schedule_with_warmup
 from tqdm import tqdm, trange
 import numpy as np
 import torch
@@ -18,12 +17,11 @@ import torch.distributed as dist
 from torch.utils.data import TensorDataset, random_split
 import utils
 # from apex import amp
-from pytorch_pretrained_bert.tokenization import BertTokenizer
-from pytorch_pretrained_bert.modeling import BertForSequenceClassification
-from pytorch_pretrained_bert.optimization import BertAdam
+
 from copy import deepcopy
 sys.path.append("./approaches/base/")
 from bert_adapter_base import Appr as ApprBase
+from my_optimization import BertAdam
 
 #TODO: attention mask
 
@@ -103,10 +101,6 @@ class Appr(ApprBase):
             pooled_rep = output_dict['normalized_pooled_rep']
             output = outputs[t]
             loss=self.ce(output,targets)
-
-
-            if self.args.augment_current: #for current, we know the label
-                loss += self.augment_current_loss(output,pooled_rep,input_ids, segment_ids, input_mask,targets, t)
 
             if self.args.sup_loss:
                 loss += self.sup_loss(output,pooled_rep,input_ids, segment_ids, input_mask,targets,t)

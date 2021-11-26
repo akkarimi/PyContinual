@@ -5,7 +5,6 @@ import torch
 dtype = torch.cuda.FloatTensor  # run on GPU
 import utils
 from tqdm import tqdm, trange
-from transformers import AdamW, get_linear_schedule_with_warmup
 from tqdm import tqdm, trange
 import numpy as np
 import torch
@@ -17,7 +16,6 @@ import utils
 from seqeval.metrics import classification_report
 import torch.nn.functional as F
 import nlp_data_utils as data_utils
-from pytorch_pretrained_bert.optimization import BertAdam
 from copy import deepcopy
 import os
 import logging
@@ -27,6 +25,7 @@ import json
 import random
 sys.path.append("./approaches/base/")
 from bert_adapter_base import Appr as ApprBase
+from my_optimization import BertAdam
 
 ########################################################################################################################
 
